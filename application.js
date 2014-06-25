@@ -3,6 +3,8 @@ var express = require('express');
 var mbaasExpress = mbaasApi.mbaasExpress();
 var cors = require('cors');
 
+var retureFailure = false;
+
 mbaasApi.sync.init('tasks', {
   logLevel: 'silly',
   syncFrequency: 1
@@ -18,9 +20,20 @@ var app = express();
 // Enable CORS for all requests
 app.use(cors());
 
+app.use('/setFailure/:value', function(req, res){
+  retureFailure = req.params.value === "true";
+  return res.json({current: retureFailure});
+});
+
 // Note: the order which we add middleware to Express here is important!
 app.use('/sys', mbaasExpress.sys(securableEndpoints));
-app.use('/mbaas', mbaasExpress.mbaas);
+app.use('/mbaas', function(req, res, next){
+  if(retureFailure){
+    return res.send(500);
+  } else {
+    return mbaasExpress.mbaas(req, res, next);
+  }
+});
 
 // Note: important that this is added just before your own Routes
 app.use(mbaasExpress.fhmiddleware());
@@ -30,11 +43,6 @@ app.use('/cloud/echo', require('./lib/echo.js')());
 app.use('/echo', require('./lib/echo.js')());
 
 app.use('/syncTest', require('./lib/syncTest.js')());
-
-// You can define custom URL handlers here, like this one:
-app.use('/', function(req, res) {
-  res.end('Your Cloud App is Running');
-});
 
 // Important that this is last!
 app.use(mbaasExpress.errorHandler());
